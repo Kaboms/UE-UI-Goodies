@@ -1,12 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UIGoodies.h"
+#include "RadialMenu/RadialMenuDetails.h"
 
 #define LOCTEXT_NAMESPACE "FUIGoodiesModule"
 
 void FUIGoodiesModule::StartupModule()
 {
-	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
+	// Class detail customizations
+	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
+	PropertyModule.RegisterCustomClassLayout(TEXT("RadialMenu"), FOnGetDetailCustomizationInstance::CreateStatic(&FRadialMenuDetails::MakeInstance));
 }
 
 void FUIGoodiesModule::ShutdownModule()
