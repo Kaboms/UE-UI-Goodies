@@ -19,6 +19,7 @@ void SRadialMenu::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& 
 SRadialMenu::SRadialMenu()
 	: Slots(this)
 	, PreferredWidth(*this, 100.f)
+	,BorderImageAttribute(*this, FCoreStyle::Get().GetBrush("Border"))
 {
 }
 
@@ -43,11 +44,12 @@ void SRadialMenu::Construct(const FArguments& InArgs)
 	bUseAllottedWidth = InArgs._UseAllottedWidth;
 	StartingAngle = InArgs._StartingAngle;
 	StickDeadzone = InArgs._StickDeadzone;
+	OnSelectionChanged = InArgs._OnSelectionChanged;
+	SetBorderImage(InArgs._BorderImage);
 
 	Slots.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
 }
 
-PRAGMA_DISABLE_OPTIMIZATION
 void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	if (bUseAllottedWidth)
@@ -66,16 +68,17 @@ void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 
 		if (AnalogValueTemp.Size() >= 0.05f)
 		{
-			double Angle = FRotator::ClampAxis(FMath::RadiansToDegrees(FMath::Atan2(AnalogValueTemp.Y, AnalogValueTemp.X)));
+			CurrentAngle = FRotator::ClampAxis(FMath::RadiansToDegrees(FMath::Atan2(AnalogValueTemp.Y, AnalogValueTemp.X)));
 
 			for (int32 ChildIndex = 0; ChildIndex < Slots.Num(); ++ChildIndex)
 			{
 				const FSlot& Slot = Slots[ChildIndex];
-				if (FMath::Abs(FRotator::ClampAxis(Slot.GetAngle() - Angle)) <= Slot.GetAngleWidth() * 0.5)
+				if (FMath::Abs(FRotator::ClampAxis(Slot.GetAngle() - CurrentAngle)) <= Slot.GetAngleWidth() * 0.5)
 				{
 					if (SelectedSlot != ChildIndex)
 					{
 						SelectedSlot = ChildIndex;
+						OnSelectionChanged.ExecuteIfBound(SelectedSlot);
 
 						FSlateApplication::Get().ForEachUser([&](FSlateUser& User) {
 							if (FSlateApplication::Get().SetUserFocus(User.GetUserIndex(), Slot.GetWidget(), EFocusCause::SetDirectly))
@@ -89,7 +92,6 @@ void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 		}
 	}
 }
-PRAGMA_ENABLE_OPTIMIZATION
 
 /*
  * Simple class for handling the circular arrangement of elements
@@ -229,6 +231,15 @@ void SRadialMenu::SetUseAllottedWidth(bool bInUseAllottedWidth)
 	bUseAllottedWidth = bInUseAllottedWidth;
 }
 
+void SRadialMenu::SetBorderImage(TAttribute<const FSlateBrush*> InBorderImage)
+{
+	BorderImageAttribute.Assign(*this, InBorderImage);
+}
+
+void SRadialMenu::NotifySlotChanged(const FSlot* InSlot, bool bSlotLayerChanged)
+{
+}
+
 FReply SRadialMenu::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& InAnalogInputEvent)
 {
 	FKey Key = InAnalogInputEvent.GetKey();
@@ -246,8 +257,26 @@ FReply SRadialMenu::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAna
 	return FReply::Handled();
 }
 
-void SRadialMenu::NotifySlotChanged(const FSlot* InSlot, bool bSlotLayerChanged)
+int32 SRadialMenu::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
+	const FSlateBrush* BrushResource = BorderImageAttribute.Get();
+
+	const bool bEnabled = ShouldBeEnabled(bParentEnabled);
+
+	if (BrushResource && BrushResource->DrawAs != ESlateBrushDrawType::NoDrawType)
+	{
+		const FGeometry FlippedGeometry = AllottedGeometry.MakeChild(FSlateRenderTransform(FScale2D(-1, 1)));
+		FSlateDrawElement::MakeBox(
+			OutDrawElements,
+			LayerId,
+			FlippedGeometry.ToPaintGeometry(),
+			BrushResource,
+			ESlateDrawEffect::None,
+			BrushResource->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint()
+		);
+	}
+
+	return SPanel::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bEnabled);
 }
 
 #undef LOCTEXT_NAMESPACE

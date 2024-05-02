@@ -91,12 +91,14 @@ public:
 		}
 	};
 
+	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, int32);
 
 	SLATE_BEGIN_ARGS(SRadialMenu)
 		: _PreferredWidth(100.f)
 		, _UseAllottedWidth(false)
 		, _StartingAngle(0.f)
 		, _StickDeadzone(0.5f)
+		, _BorderImage(FCoreStyle::Get().GetBrush("Border"))
 		{
 			_Visibility = EVisibility::SelfHitTestInvisible;
 		}
@@ -115,6 +117,10 @@ public:
 
 		/** Analog value deadzone */
 		SLATE_ARGUMENT(float, StickDeadzone)
+
+		SLATE_ATTRIBUTE(const FSlateBrush*, BorderImage)
+
+		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
 
 	SLATE_END_ARGS()
 
@@ -140,6 +146,10 @@ public:
 
 	virtual void CacheDesiredSize(float LayoutScaleMultiplier) override;
 
+	virtual FReply OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& InAnalogInputEvent) override;
+
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
 	void ClearChildren();
 
 	virtual FVector2D ComputeDesiredSize(float) const override;
@@ -152,16 +162,23 @@ public:
 
 	void SetUseAllottedWidth(bool bInUseAllottedWidth);
 
-	virtual FReply OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& InAnalogInputEvent) override;
+	// Return -1 if no slot selected
+	int32 GetSelectedSlot() const { return SelectedSlot; }
+	float GetCurrentAngle() const { return CurrentAngle; }
+
+	/** Set the image to draw for this border. */
+	void SetBorderImage(TAttribute<const FSlateBrush*> InBorderImage);
 
 private:
 	void NotifySlotChanged(const FSlot* InSlot, bool bSlotLayerChanged = false);
 
-private:
+protected:
 	/** The slots that contain this panel's children. */
 	TPanelChildren<FSlot> Slots;
 
-	int SelectedSlot = -1;
+	int32 SelectedSlot = -1;
+
+	TSlateAttribute<const FSlateBrush*> BorderImageAttribute;
 
 	/** How wide this panel should appear to be. */
 	TSlateAttribute<float, EInvalidateWidgetReason::Layout> PreferredWidth;
@@ -169,10 +186,14 @@ private:
 	/** Offset of the first element in the circle in degrees */
 	float StartingAngle;
 
+	float CurrentAngle;
+
 	float StickDeadzone;
 
 	/** If true the box will have a preferred width equal to its alloted width  */
 	bool bUseAllottedWidth;
+
+	FOnSelectionChanged OnSelectionChanged;
 
 	class FChildArranger;
 	friend class SRadialMenu::FChildArranger;
