@@ -8,6 +8,10 @@
 
 #define LOCTEXT_NAMESPACE "UIGoodies"
 
+#define RADIALMENU_MATERIAL_SELECTEDSECTORANGLE "SelectedSectorAngle"
+#define RADIALMENU_MATERIAL_SELECTORANGLE "SelectorAngle"
+#define RADIALMENU_MATERIAL_SECTORSAMOUNT "SectorsAmount"
+
 URadialMenu::URadialMenu(const FObjectInitializer& Initializer)
 	: Super(Initializer)
 {
@@ -24,8 +28,10 @@ void URadialMenu::ReleaseSlateResources(bool bReleaseChildren)
 TSharedRef<SWidget> URadialMenu::RebuildWidget()
 {
 	MyRadialMenu = SNew(SRadialMenu)
-		.UseAllottedWidth(true)
-		.StartingAngle(StartingAngle);
+		.PreferredRadius(PreferredRadius)
+		.StartingAngle(StartingAngle)
+		.OnSelectionChanged(SRadialMenu::FOnSelectionChanged::CreateUObject(this, &URadialMenu::HandleOnSelectionChanged))
+		.OnAngleChanged(SRadialMenu::FOnAngleChanged::CreateUObject(this, &URadialMenu::HandleOnAngleChanged));
 
 	for (UPanelSlot* PanelSlot : Slots)
 	{
@@ -33,6 +39,29 @@ TSharedRef<SWidget> URadialMenu::RebuildWidget()
 		{
 			TypedSlot->Parent = this;
 			TypedSlot->BuildSlot(MyRadialMenu.ToSharedRef());
+		}
+	}
+
+	if (!IsDesignTime())
+	{
+		if (BorderDynamicMaterial == nullptr)
+		{
+			UMaterialInstanceDynamic* const ParentMaterialDynamic = Cast<UMaterialInstanceDynamic>(Background.GetResourceObject());
+			if (ParentMaterialDynamic == nullptr)
+			{
+				UMaterialInterface* ParentMaterial = Cast<UMaterialInterface>(Background.GetResourceObject());
+				if (ParentMaterial)
+				{
+					BorderDynamicMaterial = UMaterialInstanceDynamic::Create(ParentMaterial, nullptr);
+					Background.SetResourceObject(BorderDynamicMaterial);
+
+					BorderDynamicMaterial->SetScalarParameterValue(RADIALMENU_MATERIAL_SECTORSAMOUNT, Slots.Num());
+				}
+				else
+				{
+					BorderDynamicMaterial = nullptr;
+				}
+			}
 		}
 	}
 
@@ -54,6 +83,7 @@ void URadialMenu::SynchronizeProperties()
 
 	MyRadialMenu->SetStartingAngle(StartingAngle);
 	MyRadialMenu->SetBorderImage(&Background);
+	MyRadialMenu->SetPreferredRadius(PreferredRadius);
 }
 
 namespace DynamicRadialMenuCreateEntryInternal
@@ -159,6 +189,23 @@ void URadialMenu::OnSlotRemoved(UPanelSlot* InSlot)
 		}
 	}
 }
+
+void URadialMenu::HandleOnSelectionChanged(int32 SlotIndex)
+{
+	if (IsValid(BorderDynamicMaterial))
+	{
+		BorderDynamicMaterial->SetScalarParameterValue(RADIALMENU_MATERIAL_SELECTEDSECTORANGLE, MyRadialMenu->GetSlotAngle(SlotIndex));
+	}
+}
+
+void URadialMenu::HandleOnAngleChanged(float Angle)
+{
+	if (IsValid(BorderDynamicMaterial))
+	{
+		BorderDynamicMaterial->SetScalarParameterValue(RADIALMENU_MATERIAL_SELECTORANGLE, Angle);
+	}
+}
+
 #endif
 
 #undef LOCTEXT_NAMESPACE

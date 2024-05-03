@@ -4,8 +4,16 @@
 #include "RadialMenu/SRadialMenu.h"
 #include "Layout/LayoutUtils.h"
 #include "InputCoreTypes.h"
+#include "Materials/MaterialInterface.h"
 
 #define LOCTEXT_NAMESPACE "UIGoodies"
+
+SLATE_IMPLEMENT_WIDGET(SImage)
+void SRadialMenu::PrivateRegisterAttributes(FSlateAttributeInitializer& AttributeInitializer)
+{
+	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "Image", BorderImageAttribute, EInvalidateWidgetReason::Layout);
+}
+
 
 void SRadialMenu::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& InArgs)
 {
@@ -18,8 +26,8 @@ void SRadialMenu::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& 
 
 SRadialMenu::SRadialMenu()
 	: Slots(this)
-	, PreferredWidth(*this, 100.f)
 	,BorderImageAttribute(*this, FCoreStyle::Get().GetBrush("Border"))
+	, PreferredRadius(1.f)
 {
 }
 
@@ -40,11 +48,12 @@ int32 SRadialMenu::RemoveSlot(const TSharedRef<SWidget>& SlotWidget)
 
 void SRadialMenu::Construct(const FArguments& InArgs)
 {
-	PreferredWidth.Assign(*this, InArgs._PreferredWidth);
-	bUseAllottedWidth = InArgs._UseAllottedWidth;
+	PreferredRadius = InArgs._PreferredRadius;
 	StartingAngle = InArgs._StartingAngle;
 	StickDeadzone = InArgs._StickDeadzone;
 	OnSelectionChanged = InArgs._OnSelectionChanged;
+	OnAngleChanged = InArgs._OnAngleChanged;
+
 	SetBorderImage(InArgs._BorderImage);
 
 	Slots.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
@@ -52,10 +61,7 @@ void SRadialMenu::Construct(const FArguments& InArgs)
 
 void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
-	if (bUseAllottedWidth)
-	{
-		PreferredWidth.Set(*this, AllottedGeometry.GetLocalSize().X);
-	}
+	Width = AllottedGeometry.GetLocalSize().X;
 
 	// Adjust analog values according to dead zone
 	const float AnalogValsSize = AnalogValue.Size();
@@ -69,11 +75,21 @@ void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 		if (AnalogValueTemp.Size() >= 0.05f)
 		{
 			CurrentAngle = FRotator::ClampAxis(FMath::RadiansToDegrees(FMath::Atan2(AnalogValueTemp.Y, AnalogValueTemp.X)));
+			OnAngleChanged.ExecuteIfBound(CurrentAngle);
 
 			for (int32 ChildIndex = 0; ChildIndex < Slots.Num(); ++ChildIndex)
 			{
 				const FSlot& Slot = Slots[ChildIndex];
-				if (FMath::Abs(FRotator::ClampAxis(Slot.GetAngle() - CurrentAngle)) <= Slot.GetAngleWidth() * 0.5)
+
+				float AngleDifference = Slot.GetAngle() - CurrentAngle;
+				if (AngleDifference > 180) {
+					AngleDifference -= 360;
+				}
+				else if (AngleDifference < -180) {
+					AngleDifference += 360;
+				}
+
+				if (FMath::Abs(AngleDifference) <= Slot.GetAngleWidth() * 0.5)
 				{
 					if (SelectedSlot != ChildIndex)
 					{
@@ -93,32 +109,6 @@ void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 	}
 }
 
-/*
- * Simple class for handling the circular arrangement of elements
- */
-class SRadialMenu::FChildArranger
-{
-public:
-	struct FArrangementData
-	{
-		FVector2D SlotOffset;
-		FVector2D SlotSize;
-	};
-
-	typedef TFunctionRef<void(const FSlot& Slot, const FArrangementData& ArrangementData)> FOnSlotArranged;
-
-	static void Arrange(const SRadialMenu& RadialMenu, const FOnSlotArranged& OnSlotArranged);
-
-private:
-	FChildArranger(const SRadialMenu& RadialMenu, const FOnSlotArranged& OnSlotArranged);
-	void Arrange();
-
-	const SRadialMenu& RadialMenu;
-	const FOnSlotArranged& OnSlotArranged;
-	TMap<int32, FArrangementData> OngoingArrangementDataMap;
-};
-
-
 SRadialMenu::FChildArranger::FChildArranger(const SRadialMenu& InRadialMenu, const FOnSlotArranged& InOnSlotArranged)
 	: RadialMenu(InRadialMenu)
 	, OnSlotArranged(InOnSlotArranged)
@@ -129,20 +119,18 @@ SRadialMenu::FChildArranger::FChildArranger(const SRadialMenu& InRadialMenu, con
 void SRadialMenu::FChildArranger::Arrange()
 {
 	const int32 NumItems = RadialMenu.Slots.Num();
-	const float Radius = RadialMenu.PreferredWidth.Get() / 2.f;
+	const float Radius = RadialMenu.Width / 2.f * RadialMenu.PreferredRadius;
 
 	int32 TargetNumItems = FMath::Max(1, NumItems);
 	const float DegreeIncrements = 360.0f/ TargetNumItems;
 
 	//Offset to create the elements based on the middle of the widget as starting point
-	const float MiddlePointOffset = RadialMenu.PreferredWidth.Get() / 2.f;
+	const float MiddlePointOffset = RadialMenu.Width / 2.f;
 
 	for (int32 ChildIndex = 0; ChildIndex < NumItems; ++ChildIndex)
 	{
 		const FSlot& Slot = RadialMenu.Slots[ChildIndex];
 		const TSharedRef<SWidget>& Widget = Slot.GetWidget();
-
-		float DegreeOffset = -Slot.GetAngle();
 
 		// Skip collapsed widgets.
 		if (Widget->GetVisibility() == EVisibility::Collapsed)
@@ -150,13 +138,15 @@ void SRadialMenu::FChildArranger::Arrange()
 			continue;
 		}
 
+		float DegreeOffset = -Slot.GetAngle();
+
 		FArrangementData& ArrangementData = OngoingArrangementDataMap.Add(ChildIndex, FArrangementData());
 
 		const FVector2D DesiredSizeOfSlot = Widget->GetDesiredSize();
 
 		float SmallestSide = FMath::Min(DesiredSizeOfSlot.X / 2.f, DesiredSizeOfSlot.Y / 2.f);
-		ArrangementData.SlotOffset.X = (Radius - SmallestSide) * FMath::Cos(FMath::DegreesToRadians(DegreeOffset)) + MiddlePointOffset - DesiredSizeOfSlot.X / 2.f;
-		ArrangementData.SlotOffset.Y = (Radius - SmallestSide) * FMath::Sin(FMath::DegreesToRadians(DegreeOffset)) + MiddlePointOffset - DesiredSizeOfSlot.Y / 2.f;
+		ArrangementData.SlotOffset.X = (Radius - SmallestSide) * Slot.GetDirection().X + MiddlePointOffset - DesiredSizeOfSlot.X / 2.f;
+		ArrangementData.SlotOffset.Y = (Radius - SmallestSide) * Slot.GetDirection().Y + MiddlePointOffset - DesiredSizeOfSlot.Y / 2.f;
 		ArrangementData.SlotSize.X = DesiredSizeOfSlot.X;
 		ArrangementData.SlotSize.Y = DesiredSizeOfSlot.Y;
 
@@ -198,6 +188,12 @@ void SRadialMenu::CacheDesiredSize(float LayoutScaleMultiplier)
 		float SlotAngleSizeAlpha = (Slot.GetWeight() / TotalWeight);
 		Slot.SetAngleWidth(360 * SlotAngleSizeAlpha);
 
+		FVector2D Direction;
+		Direction.X = FMath::Cos(FMath::DegreesToRadians(-DegreeOffset));
+		Direction.Y = FMath::Sin(FMath::DegreesToRadians(-DegreeOffset));
+
+		Slot.SetDirection(Direction);
+
 		DegreeOffset += Slot.GetAngleWidth();
 	}
 }
@@ -226,9 +222,14 @@ FChildren* SRadialMenu::GetChildren()
 	return &Slots;
 }
 
-void SRadialMenu::SetUseAllottedWidth(bool bInUseAllottedWidth)
+float SRadialMenu::GetSlotAngle(int32 SlotIndex)
 {
-	bUseAllottedWidth = bInUseAllottedWidth;
+	if (Slots.IsValidIndex(SlotIndex))
+	{
+		return Slots[SlotIndex].GetAngle();
+	}
+
+	return 0;
 }
 
 void SRadialMenu::SetBorderImage(TAttribute<const FSlateBrush*> InBorderImage)
@@ -257,6 +258,11 @@ FReply SRadialMenu::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAna
 	return FReply::Handled();
 }
 
+FReply SRadialMenu::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	return FReply::Handled();
+}
+
 int32 SRadialMenu::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 	const FSlateBrush* BrushResource = BorderImageAttribute.Get();
@@ -265,7 +271,7 @@ int32 SRadialMenu::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeom
 
 	if (BrushResource && BrushResource->DrawAs != ESlateBrushDrawType::NoDrawType)
 	{
-		const FGeometry FlippedGeometry = AllottedGeometry.MakeChild(FSlateRenderTransform(FScale2D(-1, 1)));
+		const FGeometry FlippedGeometry = AllottedGeometry.MakeChild(FSlateRenderTransform(FScale2D(1, 1)));
 		FSlateDrawElement::MakeBox(
 			OutDrawElements,
 			LayerId,

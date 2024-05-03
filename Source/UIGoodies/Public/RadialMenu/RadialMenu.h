@@ -70,6 +70,9 @@ protected:
 	virtual void OnSlotRemoved(UPanelSlot* Slot) override;
 	// End UPanelWidget
 
+	void HandleOnSelectionChanged(int32 SlotIndex);
+	void HandleOnAngleChanged(float Angle);
+
 public:
 	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSelectionChanged, int32, SelectedChild);
 
@@ -85,5 +88,12 @@ protected:
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 360))
 	float StartingAngle;
 
+	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1))
+	float PreferredRadius = 1;
+
 	TSharedPtr<SRadialMenu> MyRadialMenu;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> BorderDynamicMaterial;
+
 };

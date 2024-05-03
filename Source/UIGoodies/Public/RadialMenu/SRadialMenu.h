@@ -16,6 +16,7 @@
  */
 class UIGOODIES_API SRadialMenu : public SPanel
 {
+	SLATE_DECLARE_WIDGET(SRadialMenu, SPanel)
 
 public:
 
@@ -72,6 +73,16 @@ public:
 			AngleWidthParam = AngleWidth;
 		}
 
+		FVector2D GetDirection() const
+		{
+			return Direction;
+		}
+
+		void SetDirection(FVector2D InDirection)
+		{
+			Direction = InDirection;
+		}
+
 	private:
 		/** The panel that contains this slot */
 		TWeakPtr<SRadialMenu> RadialMenu;
@@ -80,6 +91,8 @@ public:
 
 		float AngleParam;
 		float AngleWidthParam;
+
+		FVector2D Direction;
 
 		/** Notify that the slot was changed */
 		FORCEINLINE void NotifySlotChanged(bool bSlotLayerChanged = false)
@@ -92,10 +105,10 @@ public:
 	};
 
 	DECLARE_DELEGATE_OneParam(FOnSelectionChanged, int32);
+	DECLARE_DELEGATE_OneParam(FOnAngleChanged, float);
 
 	SLATE_BEGIN_ARGS(SRadialMenu)
-		: _PreferredWidth(100.f)
-		, _UseAllottedWidth(false)
+		: _PreferredRadius(1.f)
 		, _StartingAngle(0.f)
 		, _StickDeadzone(0.5f)
 		, _BorderImage(FCoreStyle::Get().GetBrush("Border"))
@@ -106,11 +119,8 @@ public:
 		/** The slot supported by this panel */
 		SLATE_SLOT_ARGUMENT(FSlot, Slots)
 
-		/** The preferred width, if not set will fill the space */
-		SLATE_ATTRIBUTE(float, PreferredWidth)
-
-		/** if true, the PreferredWidth will always match the room available to the SRadialMenu  */
-		SLATE_ARGUMENT(bool, UseAllottedWidth)
+		/** The preferred Radius, if not set will fill the space */
+		SLATE_ARGUMENT(float, PreferredRadius)
 
 		/** Offset of the first element in the circle in degrees */
 		SLATE_ARGUMENT(float, StartingAngle)
@@ -121,6 +131,7 @@ public:
 		SLATE_ATTRIBUTE(const FSlateBrush*, BorderImage)
 
 		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
+		SLATE_EVENT(FOnAngleChanged, OnAngleChanged)
 
 	SLATE_END_ARGS()
 
@@ -148,6 +159,8 @@ public:
 
 	virtual FReply OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& InAnalogInputEvent) override;
 
+	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 	void ClearChildren();
@@ -160,11 +173,13 @@ public:
 
 	void SetStickDeadzone(float InStickDeadzone) { StickDeadzone = InStickDeadzone; }
 
-	void SetUseAllottedWidth(bool bInUseAllottedWidth);
+	void SetPreferredRadius(float InPreferredRadius) { PreferredRadius = InPreferredRadius; }
 
 	// Return -1 if no slot selected
 	int32 GetSelectedSlot() const { return SelectedSlot; }
 	float GetCurrentAngle() const { return CurrentAngle; }
+
+	float GetSlotAngle(int32 SlotIndex);
 
 	/** Set the image to draw for this border. */
 	void SetBorderImage(TAttribute<const FSlateBrush*> InBorderImage);
@@ -181,24 +196,49 @@ protected:
 	TSlateAttribute<const FSlateBrush*> BorderImageAttribute;
 
 	/** How wide this panel should appear to be. */
-	TSlateAttribute<float, EInvalidateWidgetReason::Layout> PreferredWidth;
+	float PreferredRadius;
+
+	float Width;
+
+	class FChildArranger;
+	friend class SRadialMenu::FChildArranger;
 
 	/** Offset of the first element in the circle in degrees */
 	float StartingAngle;
 
 	float CurrentAngle;
 
-	float StickDeadzone;
-
-	/** If true the box will have a preferred width equal to its alloted width  */
-	bool bUseAllottedWidth;
-
-	FOnSelectionChanged OnSelectionChanged;
-
-	class FChildArranger;
-	friend class SRadialMenu::FChildArranger;
+	float TotalWeight;
 
 	FVector2D AnalogValue;
 
-	float TotalWeight;
+	float StickDeadzone;
+
+	FOnSelectionChanged OnSelectionChanged;
+	FOnAngleChanged OnAngleChanged;
+};
+
+/*
+ * Simple class for handling the circular arrangement of elements
+ */
+class SRadialMenu::FChildArranger
+{
+public:
+	struct FArrangementData
+	{
+		FVector2D SlotOffset;
+		FVector2D SlotSize;
+	};
+
+	typedef TFunctionRef<void(const FSlot& Slot, const FArrangementData& ArrangementData)> FOnSlotArranged;
+
+	static void Arrange(const SRadialMenu& RadialMenu, const FOnSlotArranged& OnSlotArranged);
+
+private:
+	FChildArranger(const SRadialMenu& RadialMenu, const FOnSlotArranged& OnSlotArranged);
+	void Arrange();
+
+	const SRadialMenu& RadialMenu;
+	const FOnSlotArranged& OnSlotArranged;
+	TMap<int32, FArrangementData> OngoingArrangementDataMap;
 };
