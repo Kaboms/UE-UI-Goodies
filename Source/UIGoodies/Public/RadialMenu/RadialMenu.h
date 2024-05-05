@@ -92,6 +92,16 @@ protected:
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1))
 	float PreferredRadius = 1;
 
+	UPROPERTY(EditAnywhere)
+	bool bMouseAsAnalogCursor = true;
+
+	// Set to 0 to instant cursor movement
+	UPROPERTY(EditAnywhere)
+	float CursorSpeed = 10;
+
+	UPROPERTY(EditAnywhere)
+	EAnalogStickType StickType;
+
 	TSharedPtr<SRadialMenu> MyRadialMenu;
 
 	UPROPERTY(Transient)

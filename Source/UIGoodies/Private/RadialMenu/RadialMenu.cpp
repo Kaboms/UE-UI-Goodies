@@ -31,7 +31,8 @@ TSharedRef<SWidget> URadialMenu::RebuildWidget()
 		.PreferredRadius(PreferredRadius)
 		.StartingAngle(StartingAngle)
 		.OnSelectionChanged(SRadialMenu::FOnSelectionChanged::CreateUObject(this, &URadialMenu::HandleOnSelectionChanged))
-		.OnAngleChanged(SRadialMenu::FOnAngleChanged::CreateUObject(this, &URadialMenu::HandleOnAngleChanged));
+		.OnAngleChanged(SRadialMenu::FOnAngleChanged::CreateUObject(this, &URadialMenu::HandleOnAngleChanged))
+		.CursorSpeed(CursorSpeed);
 
 	for (UPanelSlot* PanelSlot : Slots)
 	{
@@ -63,6 +64,8 @@ TSharedRef<SWidget> URadialMenu::RebuildWidget()
 				}
 			}
 		}
+
+		MyRadialMenu->InitInputProcessor(bMouseAsAnalogCursor, StickType);
 	}
 
     return MyRadialMenu.ToSharedRef();
@@ -72,18 +75,20 @@ void URadialMenu::SynchronizeProperties()
 {
 	Super::SynchronizeProperties();
 
+	if (!MyRadialMenu.IsValid())
+		return;
+
 #if WITH_EDITORONLY_DATA
-	if (IsDesignTime() && MyRadialMenu.IsValid())
+	if (IsDesignTime())
 	{
 	}
 #endif
 
-	if (!MyRadialMenu.IsValid())
-		return;
-
 	MyRadialMenu->SetStartingAngle(StartingAngle);
 	MyRadialMenu->SetBorderImage(&Background);
 	MyRadialMenu->SetPreferredRadius(PreferredRadius);
+	MyRadialMenu->SetMouseAsAnalogCursor(bMouseAsAnalogCursor);
+	MyRadialMenu->SetCursorSpeed(CursorSpeed);
 }
 
 namespace DynamicRadialMenuCreateEntryInternal
@@ -192,6 +197,12 @@ void URadialMenu::OnSlotRemoved(UPanelSlot* InSlot)
 
 void URadialMenu::HandleOnSelectionChanged(int32 SlotIndex)
 {
+	// Slate emit this event from Tick. If broadcast event from tick it freeze the whole Editor UI, so we make async broadcast from GameThread
+	AsyncTask(ENamedThreads::GameThread, [=]()
+		{
+			OnSelectionChanged.Broadcast(SlotIndex);
+		});
+
 	if (IsValid(BorderDynamicMaterial))
 	{
 		BorderDynamicMaterial->SetScalarParameterValue(RADIALMENU_MATERIAL_SELECTEDSECTORANGLE, MyRadialMenu->GetSlotAngle(SlotIndex));

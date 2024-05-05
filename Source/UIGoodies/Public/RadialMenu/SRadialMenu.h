@@ -113,7 +113,7 @@ public:
 		: _PreferredRadius(1.f)
 		, _StartingAngle(0.f)
 		, _AnalogValueDeadzone(0.5f)
-		, _MouseAsAnalogValue(true)
+		, _CursorSpeed(10.f)
 		, _BorderImage(FCoreStyle::Get().GetBrush("Border"))
 		{
 			_Visibility = EVisibility::SelfHitTestInvisible;
@@ -131,7 +131,7 @@ public:
 		/** Analog value deadzone */
 		SLATE_ARGUMENT(float, AnalogValueDeadzone)
 
-		SLATE_ARGUMENT(bool, MouseAsAnalogValue)
+		SLATE_ARGUMENT(float, CursorSpeed)
 
 		SLATE_ATTRIBUTE(const FSlateBrush*, BorderImage)
 
@@ -158,6 +158,8 @@ public:
 
 	void Construct(const FArguments& InArgs);
 
+	void InitInputProcessor(bool UseMouseAsAnalogCursorm, EAnalogStickType StickType);
+
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
 	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
@@ -178,7 +180,9 @@ public:
 
 	void SetPreferredRadius(float InPreferredRadius) { PreferredRadius = InPreferredRadius; }
 
-	void SetMouseAsAnalogValue(bool InMouseAsAnalogValue) { bMouseAsAnalogValue = InMouseAsAnalogValue; }
+	void SetMouseAsAnalogCursor(bool InMouseAsAnalogCursor);
+
+	void SetCursorSpeed(float InCursorSpeed) { CursorSpeed = InCursorSpeed; }
 
 	// Return -1 if no slot selected
 	int32 GetSelectedSlot() const { return SelectedSlot; }
@@ -212,12 +216,13 @@ protected:
 	float StartingAngle;
 
 	float CurrentAngle;
+	float TargetAngle;
 
 	float TotalWeight;
 
 	float AnalogValueDeadzone;
 
-	bool bMouseAsAnalogValue = true;
+	float CursorSpeed;
 
 	FOnSelectionChanged OnSelectionChanged;
 	FOnAngleChanged OnAngleChanged;

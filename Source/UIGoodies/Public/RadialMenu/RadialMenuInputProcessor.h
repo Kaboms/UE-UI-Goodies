@@ -20,6 +20,11 @@ public:
 	FRadialMenuInputProcessor(TSharedPtr<SRadialMenu> InOwner)
 	{
 		Owner = InOwner;
+
+		MouseDistance = FVector2D::Zero();
+		MousePosition = FVector2D::Zero();
+		LastMousePosition = FVector2D::Zero();
+		AnalogValue = FVector2D::Zero();
 	}
 
 	void SetOwner(TSharedPtr<SRadialMenu> InOwner)
@@ -31,6 +36,20 @@ public:
 
 	virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override
 	{
+		if (bMouseAsAnalogCursor)
+		{
+			MouseDistance += MousePosition - LastMousePosition;
+			if (MouseDistance.Size() > 50)
+			{
+				MouseDistance.Normalize();
+				MouseDistance += AnalogValue;
+				MouseDistance.Normalize();
+				SetAnalogValue(MouseDistance);
+
+				MouseDistance = FVector2D::Zero();
+			}
+			LastMousePosition = MousePosition;
+		}
 	}
 
 	virtual bool HandleAnalogInputEvent(FSlateApplication& SlateApp, const FAnalogInputEvent& InAnalogInputEvent) override
@@ -38,51 +57,106 @@ public:
 		FKey Key = InAnalogInputEvent.GetKey();
 		float InputAnalogValue = InAnalogInputEvent.GetAnalogValue();
 
-		if (Key == EKeys::Gamepad_LeftX)
+		if (StickType == EAnalogStickType::LeftStick)
 		{
-			AnalogValue.X = InputAnalogValue;
+			if (Key == EKeys::Gamepad_LeftX)
+			{
+				AnalogValue.X = InputAnalogValue;
+			}
+			else if (Key == EKeys::Gamepad_LeftY)
+			{
+				AnalogValue.Y = -InputAnalogValue;
+			}
 		}
-		else if (Key == EKeys::Gamepad_LeftY)
+		else if (StickType == EAnalogStickType::RightStick)
 		{
-			AnalogValue.Y = InputAnalogValue;
+			if (Key == EKeys::Gamepad_RightX)
+			{
+				AnalogValue.X = InputAnalogValue;
+			}
+			else if (Key == EKeys::Gamepad_RightY)
+			{
+				AnalogValue.Y = -InputAnalogValue;
+			}
 		}
+		bHasAnalogInput = true;
 
-		bHasInput = true;
-
-		return true;
+		return false;
 	}
 
 	/** Mouse movement input */
 	virtual bool HandleMouseMoveEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override
 	{
-		MousePosition = MouseEvent.GetScreenSpacePosition();
+		SetMousePosition(MouseEvent.GetScreenSpacePosition());
 
-		return true;
+		return false;
 	}
 
 	FVector2D GetAnalogValue()
 	{
-		bHasInput = false;
+		bHasAnalogInput = false;
 
 		return AnalogValue;
 	}
 
-	FVector2D GetMousePosition() const
+	void SetAnalogValue(FVector2D InAnalogInput)
 	{
+		bHasAnalogInput = true;
+		AnalogValue = InAnalogInput;
+	}
+
+	void SetMousePosition(FVector2D InMousePosition)
+	{
+		bHasMouseInput = true;
+		MousePosition = InMousePosition;
+	}
+
+	FVector2D GetMousePosition()
+	{
+		bHasMouseInput = false;
 		return MousePosition;
 	}
 
-	bool HasInput() const
+	bool HasAnalogInput() const
 	{
-		return bHasInput;
+		return bHasAnalogInput;
+	}
+
+	bool HasMouseInput()
+	{
+		return bHasMouseInput;
+	}
+
+	void SetMouseAsAnalogCursor(bool InMouseAsAnalogCursor)
+	{
+		bMouseAsAnalogCursor = InMouseAsAnalogCursor;
+	}
+
+	bool GetMouseAsAnalogCursor() const
+	{
+		return bMouseAsAnalogCursor;
+	}
+
+	void SetAnalogStickType(EAnalogStickType InStickType)
+	{
+		StickType = InStickType;
 	}
 
 private:
 	TWeakPtr<SRadialMenu> Owner;
 
+	EAnalogStickType StickType;
+
 	FVector2D AnalogValue;
 
 	FVector2D MousePosition;
 
-	bool bHasInput;
+	FVector2D LastMousePosition;
+
+	FVector2D MouseDistance;
+
+	bool bMouseAsAnalogCursor;
+
+	bool bHasAnalogInput;
+	bool bHasMouseInput;
 };

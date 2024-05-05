@@ -27,7 +27,6 @@ void SRadialMenu::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& 
 SRadialMenu::SRadialMenu()
 	: Slots(this)
 	,BorderImageAttribute(*this, FCoreStyle::Get().GetBrush("Border"))
-	, PreferredRadius(1.f)
 {
 }
 
@@ -38,19 +37,31 @@ void SRadialMenu::Construct(const FArguments& InArgs)
 	AnalogValueDeadzone = InArgs._AnalogValueDeadzone;
 	OnSelectionChanged = InArgs._OnSelectionChanged;
 	OnAngleChanged = InArgs._OnAngleChanged;
-	bMouseAsAnalogValue = InArgs._MouseAsAnalogValue;
+	CursorSpeed = InArgs._CursorSpeed;
 
 	SetBorderImage(InArgs._BorderImage);
 
 	Slots.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
+}
+
+void SRadialMenu::InitInputProcessor(bool UseMouseAsAnalogCursor, EAnalogStickType StickType)
+{
+	if (!FSlateApplication::IsInitialized())
+		return;
 
 	InputProcessor = MakeShared<FRadialMenuInputProcessor>(SharedThis(this));
+	InputProcessor->SetMouseAsAnalogCursor(UseMouseAsAnalogCursor);
+	InputProcessor->SetAnalogStickType(StickType);
+
 	FSlateApplication::Get().RegisterInputPreProcessor(InputProcessor);
 }
 
 SRadialMenu::~SRadialMenu()
 {
-	FSlateApplication::Get().UnregisterInputPreProcessor(InputProcessor);
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().UnregisterInputPreProcessor(InputProcessor);
+	}
 }
 
 SRadialMenu::FSlot::FSlotArguments SRadialMenu::Slot()
@@ -68,24 +79,25 @@ int32 SRadialMenu::RemoveSlot(const TSharedRef<SWidget>& SlotWidget)
 	return Slots.Remove(SlotWidget);
 }
 
-
 void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	Width = AllottedGeometry.GetLocalSize().X;
 
-	FVector2D AnalogValueTemp;
+	if (!InputProcessor.IsValid())
+		return;
 
-	if (InputProcessor->HasInput())
+	FVector2D AnalogValueTemp = FVector2D::Zero();
+
+	if (InputProcessor->HasAnalogInput())
 	{
 		AnalogValueTemp = InputProcessor->GetAnalogValue();
 	}
-	else if (true /*!bMouseAsAnalogValue*/)
+	else if (!InputProcessor->GetMouseAsAnalogCursor() && InputProcessor->HasMouseInput())
 	{
 		FVector2D LocalPosition = AllottedGeometry.AbsoluteToLocal(InputProcessor->GetMousePosition());
 		FVector2D CenterPosition = AllottedGeometry.GetLocalSize() / 2;
 
 		AnalogValueTemp = LocalPosition - CenterPosition;
-		AnalogValueTemp.Y *= -1;
 		AnalogValueTemp.Normalize();
 	}
 
@@ -100,36 +112,35 @@ void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 
 		if (AnalogValueTemp.Size() >= 0.05f)
 		{
-			CurrentAngle = FRotator::ClampAxis(FMath::RadiansToDegrees(FMath::Atan2(AnalogValueTemp.Y, AnalogValueTemp.X)));
-			OnAngleChanged.ExecuteIfBound(CurrentAngle);
+			TargetAngle = FRotator::ClampAxis(FMath::RadiansToDegrees(FMath::Atan2(-AnalogValueTemp.Y, AnalogValueTemp.X)));
+		}
+	}
 
-			for (int32 ChildIndex = 0; ChildIndex < Slots.Num(); ++ChildIndex)
+	if (!FMath::IsNearlyEqual(CurrentAngle, TargetAngle, 1))
+	{
+		CurrentAngle = FMath::FInterpTo(CurrentAngle, CurrentAngle + FRotator::NormalizeAxis(TargetAngle - CurrentAngle), InDeltaTime, CursorSpeed);
+		OnAngleChanged.ExecuteIfBound(CurrentAngle);
+
+		for (int32 ChildIndex = 0; ChildIndex < Slots.Num(); ++ChildIndex)
+		{
+			const FSlot& Slot = Slots[ChildIndex];
+
+			float AngleDifference = FRotator::NormalizeAxis(Slot.GetAngle() - FRotator::NormalizeAxis(CurrentAngle));
+
+			if (FMath::Abs(AngleDifference) <= Slot.GetAngleWidth() * 0.5)
 			{
-				const FSlot& Slot = Slots[ChildIndex];
-
-				float AngleDifference = Slot.GetAngle() - CurrentAngle;
-				if (AngleDifference > 180) {
-					AngleDifference -= 360;
-				}
-				else if (AngleDifference < -180) {
-					AngleDifference += 360;
-				}
-
-				if (FMath::Abs(AngleDifference) <= Slot.GetAngleWidth() * 0.5)
+				if (SelectedSlot != ChildIndex)
 				{
-					if (SelectedSlot != ChildIndex)
-					{
-						SelectedSlot = ChildIndex;
-						OnSelectionChanged.ExecuteIfBound(SelectedSlot);
+					SelectedSlot = ChildIndex;
+					OnSelectionChanged.ExecuteIfBound(SelectedSlot);
 
-						FSlateApplication::Get().ForEachUser([&](FSlateUser& User) {
-							if (FSlateApplication::Get().SetUserFocus(User.GetUserIndex(), Slot.GetWidget(), EFocusCause::SetDirectly))
-							{
-							}
-							});
-					}
-					break;
+					FSlateApplication::Get().ForEachUser([&](FSlateUser& User) {
+						if (FSlateApplication::Get().SetUserFocus(User.GetUserIndex(), Slot.GetWidget(), EFocusCause::SetDirectly))
+						{
+						}
+						});
 				}
+				break;
 			}
 		}
 	}
@@ -246,6 +257,14 @@ FVector2D SRadialMenu::ComputeDesiredSize(float) const
 FChildren* SRadialMenu::GetChildren()
 {
 	return &Slots;
+}
+
+void SRadialMenu::SetMouseAsAnalogCursor(bool InMouseAsAnalogCursor)
+{
+	if (InputProcessor.IsValid())
+	{
+		InputProcessor->SetMouseAsAnalogCursor(InMouseAsAnalogCursor);
+	}
 }
 
 float SRadialMenu::GetSlotAngle(int32 SlotIndex)
