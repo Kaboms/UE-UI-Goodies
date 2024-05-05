@@ -10,9 +10,11 @@
 #include "Widgets/SWidget.h"
 #include "Layout/Children.h"
 #include "Widgets/SPanel.h"
+#include "Framework/Application/IInputProcessor.h"
+#include "RadialMenu/RadialMenuInputProcessor.h"
 
 /**
- * 
+ * Slate radial menu panel
  */
 class UIGOODIES_API SRadialMenu : public SPanel
 {
@@ -110,7 +112,8 @@ public:
 	SLATE_BEGIN_ARGS(SRadialMenu)
 		: _PreferredRadius(1.f)
 		, _StartingAngle(0.f)
-		, _StickDeadzone(0.5f)
+		, _AnalogValueDeadzone(0.5f)
+		, _MouseAsAnalogValue(true)
 		, _BorderImage(FCoreStyle::Get().GetBrush("Border"))
 		{
 			_Visibility = EVisibility::SelfHitTestInvisible;
@@ -126,7 +129,9 @@ public:
 		SLATE_ARGUMENT(float, StartingAngle)
 
 		/** Analog value deadzone */
-		SLATE_ARGUMENT(float, StickDeadzone)
+		SLATE_ARGUMENT(float, AnalogValueDeadzone)
+
+		SLATE_ARGUMENT(bool, MouseAsAnalogValue)
 
 		SLATE_ATTRIBUTE(const FSlateBrush*, BorderImage)
 
@@ -136,6 +141,8 @@ public:
 	SLATE_END_ARGS()
 
 	SRadialMenu();
+
+	~SRadialMenu();
 
 	static FSlot::FSlotArguments Slot();
 
@@ -157,10 +164,6 @@ public:
 
 	virtual void CacheDesiredSize(float LayoutScaleMultiplier) override;
 
-	virtual FReply OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& InAnalogInputEvent) override;
-
-	virtual FReply OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
-
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 	void ClearChildren();
@@ -171,9 +174,11 @@ public:
 
 	void SetStartingAngle(float InStartingAngle) { StartingAngle = InStartingAngle; }
 
-	void SetStickDeadzone(float InStickDeadzone) { StickDeadzone = InStickDeadzone; }
+	void SetAnalogValueDeadzone(float InAnalogValueDeadzone) { AnalogValueDeadzone = InAnalogValueDeadzone; }
 
 	void SetPreferredRadius(float InPreferredRadius) { PreferredRadius = InPreferredRadius; }
+
+	void SetMouseAsAnalogValue(bool InMouseAsAnalogValue) { bMouseAsAnalogValue = InMouseAsAnalogValue; }
 
 	// Return -1 if no slot selected
 	int32 GetSelectedSlot() const { return SelectedSlot; }
@@ -210,12 +215,14 @@ protected:
 
 	float TotalWeight;
 
-	FVector2D AnalogValue;
+	float AnalogValueDeadzone;
 
-	float StickDeadzone;
+	bool bMouseAsAnalogValue = true;
 
 	FOnSelectionChanged OnSelectionChanged;
 	FOnAngleChanged OnAngleChanged;
+
+	TSharedPtr<FRadialMenuInputProcessor> InputProcessor;
 };
 
 /*

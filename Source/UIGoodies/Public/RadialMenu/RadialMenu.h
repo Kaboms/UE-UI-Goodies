@@ -17,7 +17,7 @@ class USlateBrushAsset;
 class UTexture2D;
 
 /**
- * 
+ * UMG Radial menu used slate SRadialMenu
  */
 UCLASS()
 class UIGOODIES_API URadialMenu : public UPanelWidget
@@ -88,6 +88,7 @@ protected:
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 360))
 	float StartingAngle;
 
+	// Preferred radius from 0 to 1.
 	UPROPERTY(EditAnywhere, meta = (ClampMin = 0, ClampMax = 1))
 	float PreferredRadius = 1;
 

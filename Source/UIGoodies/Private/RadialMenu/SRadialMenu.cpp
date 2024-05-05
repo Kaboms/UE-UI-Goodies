@@ -31,6 +31,28 @@ SRadialMenu::SRadialMenu()
 {
 }
 
+void SRadialMenu::Construct(const FArguments& InArgs)
+{
+	PreferredRadius = InArgs._PreferredRadius;
+	StartingAngle = InArgs._StartingAngle;
+	AnalogValueDeadzone = InArgs._AnalogValueDeadzone;
+	OnSelectionChanged = InArgs._OnSelectionChanged;
+	OnAngleChanged = InArgs._OnAngleChanged;
+	bMouseAsAnalogValue = InArgs._MouseAsAnalogValue;
+
+	SetBorderImage(InArgs._BorderImage);
+
+	Slots.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
+
+	InputProcessor = MakeShared<FRadialMenuInputProcessor>(SharedThis(this));
+	FSlateApplication::Get().RegisterInputPreProcessor(InputProcessor);
+}
+
+SRadialMenu::~SRadialMenu()
+{
+	FSlateApplication::Get().UnregisterInputPreProcessor(InputProcessor);
+}
+
 SRadialMenu::FSlot::FSlotArguments SRadialMenu::Slot()
 {
 	return FSlot::FSlotArguments(MakeUnique<FSlot>());
@@ -46,29 +68,33 @@ int32 SRadialMenu::RemoveSlot(const TSharedRef<SWidget>& SlotWidget)
 	return Slots.Remove(SlotWidget);
 }
 
-void SRadialMenu::Construct(const FArguments& InArgs)
-{
-	PreferredRadius = InArgs._PreferredRadius;
-	StartingAngle = InArgs._StartingAngle;
-	StickDeadzone = InArgs._StickDeadzone;
-	OnSelectionChanged = InArgs._OnSelectionChanged;
-	OnAngleChanged = InArgs._OnAngleChanged;
-
-	SetBorderImage(InArgs._BorderImage);
-
-	Slots.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
-}
 
 void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	Width = AllottedGeometry.GetLocalSize().X;
 
+	FVector2D AnalogValueTemp;
+
+	if (InputProcessor->HasInput())
+	{
+		AnalogValueTemp = InputProcessor->GetAnalogValue();
+	}
+	else if (true /*!bMouseAsAnalogValue*/)
+	{
+		FVector2D LocalPosition = AllottedGeometry.AbsoluteToLocal(InputProcessor->GetMousePosition());
+		FVector2D CenterPosition = AllottedGeometry.GetLocalSize() / 2;
+
+		AnalogValueTemp = LocalPosition - CenterPosition;
+		AnalogValueTemp.Y *= -1;
+		AnalogValueTemp.Normalize();
+	}
+
 	// Adjust analog values according to dead zone
-	const float AnalogValsSize = AnalogValue.Size();
-	FVector2D AnalogValueTemp = AnalogValue;
+	const float AnalogValsSize = AnalogValueTemp.Size();
+
 	if (AnalogValsSize > 0.0f)
 	{
-		const float TargetSize = FMath::Max(AnalogValsSize - StickDeadzone, 0.0f) / (1.0f - StickDeadzone);
+		const float TargetSize = FMath::Max(AnalogValsSize - AnalogValueDeadzone, 0.0f) / (1.0f - AnalogValueDeadzone);
 		AnalogValueTemp /= AnalogValsSize;
 		AnalogValueTemp *= TargetSize;
 
@@ -239,28 +265,6 @@ void SRadialMenu::SetBorderImage(TAttribute<const FSlateBrush*> InBorderImage)
 
 void SRadialMenu::NotifySlotChanged(const FSlot* InSlot, bool bSlotLayerChanged)
 {
-}
-
-FReply SRadialMenu::OnAnalogValueChanged(const FGeometry& MyGeometry, const FAnalogInputEvent& InAnalogInputEvent)
-{
-	FKey Key = InAnalogInputEvent.GetKey();
-	float InputAnalogValue = InAnalogInputEvent.GetAnalogValue();
-
-	if (Key == EKeys::Gamepad_LeftX)
-	{
-		AnalogValue.X = InputAnalogValue;
-	}
-	else if (Key == EKeys::Gamepad_LeftY)
-	{
-		AnalogValue.Y = InputAnalogValue;
-	}
-
-	return FReply::Handled();
-}
-
-FReply SRadialMenu::OnMouseMove(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
-{
-	return FReply::Handled();
 }
 
 int32 SRadialMenu::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
