@@ -14,7 +14,6 @@ void SRadialMenu::PrivateRegisterAttributes(FSlateAttributeInitializer& Attribut
 	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "Image", BorderImageAttribute, EInvalidateWidgetReason::Layout);
 }
 
-
 void SRadialMenu::FSlot::Construct(const FChildren& SlotOwner, FSlotArguments&& InArgs)
 {
 	TSlotBase<FSlot>::Construct(SlotOwner, MoveTemp(InArgs));
@@ -32,6 +31,8 @@ SRadialMenu::SRadialMenu()
 
 void SRadialMenu::Construct(const FArguments& InArgs)
 {
+	TotalWeight = 0;
+
 	PreferredRadius = InArgs._PreferredRadius;
 	StartingAngle = InArgs._StartingAngle;
 	AnalogValueDeadzone = InArgs._AnalogValueDeadzone;
@@ -74,9 +75,47 @@ SRadialMenu::FScopedWidgetSlotArguments SRadialMenu::AddSlot()
 	return FScopedWidgetSlotArguments{ MakeUnique<FSlot>(), Slots, INDEX_NONE };
 }
 
+void SRadialMenu::OnSlotAdded(int32 Index)
+{
+	FSlot& NewSlot = Slots[Index];
+	TotalWeight += NewSlot.GetWeight();
+
+	float DegreeOffset = StartingAngle;
+
+	for (int32 ChildIndex = 0; ChildIndex < Slots.Num(); ++ChildIndex)
+	{
+		FSlot& Slot = Slots[ChildIndex];
+
+		Slot.SetAngle(DegreeOffset);
+
+		float SlotAngleSizeAlpha = (Slot.GetWeight() / TotalWeight);
+		Slot.SetAngleWidth(360 * SlotAngleSizeAlpha);
+
+		FVector2D Direction;
+		Direction.X = FMath::Cos(FMath::DegreesToRadians(-DegreeOffset));
+		Direction.Y = FMath::Sin(FMath::DegreesToRadians(-DegreeOffset));
+
+		Slot.SetDirection(Direction);
+
+		DegreeOffset += Slot.GetAngleWidth();
+	}
+}
+
 int32 SRadialMenu::RemoveSlot(const TSharedRef<SWidget>& SlotWidget)
 {
-	return Slots.Remove(SlotWidget);
+	for (int32 SlotIdx = 0; SlotIdx < Slots.Num(); ++SlotIdx)
+	{
+		const FSlot& Slot = Slots[SlotIdx];
+		if (SlotWidget == Slot.GetWidget())
+		{
+			TotalWeight -= Slot.GetWeight();
+
+			Slots.RemoveAt(SlotIdx);
+			return SlotIdx;
+		}
+	}
+
+	return -1;
 }
 
 void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
@@ -129,17 +168,7 @@ void SRadialMenu::Tick(const FGeometry& AllottedGeometry, const double InCurrent
 
 			if (FMath::Abs(AngleDifference) <= Slot.GetAngleWidth() * 0.5)
 			{
-				if (SelectedSlot != ChildIndex)
-				{
-					SelectedSlot = ChildIndex;
-					OnSelectionChanged.ExecuteIfBound(SelectedSlot);
-
-					FSlateApplication::Get().ForEachUser([&](FSlateUser& User) {
-						if (FSlateApplication::Get().SetUserFocus(User.GetUserIndex(), Slot.GetWidget(), EFocusCause::SetDirectly))
-						{
-						}
-						});
-				}
+				SetSelectedSlot(ChildIndex);
 				break;
 			}
 		}
@@ -206,33 +235,6 @@ void SRadialMenu::OnArrangeChildren(const FGeometry& AllottedGeometry, FArranged
 
 void SRadialMenu::CacheDesiredSize(float LayoutScaleMultiplier)
 {
-	TotalWeight = 0;
-
-	float DegreeOffset = StartingAngle;
-
-	for (int32 ChildIndex = 0; ChildIndex < Slots.Num(); ++ChildIndex)
-	{
-		FSlot& Slot = Slots[ChildIndex];
-		TotalWeight += Slot.GetWeight();
-	}
-
-	for (int32 ChildIndex = 0; ChildIndex < Slots.Num(); ++ChildIndex)
-	{
-		FSlot& Slot = Slots[ChildIndex];
-
-		Slot.SetAngle(DegreeOffset);
-
-		float SlotAngleSizeAlpha = (Slot.GetWeight() / TotalWeight);
-		Slot.SetAngleWidth(360 * SlotAngleSizeAlpha);
-
-		FVector2D Direction;
-		Direction.X = FMath::Cos(FMath::DegreesToRadians(-DegreeOffset));
-		Direction.Y = FMath::Sin(FMath::DegreesToRadians(-DegreeOffset));
-
-		Slot.SetDirection(Direction);
-
-		DegreeOffset += Slot.GetAngleWidth();
-	}
 }
 
 void SRadialMenu::ClearChildren()
@@ -280,6 +282,35 @@ float SRadialMenu::GetSlotAngle(int32 SlotIndex)
 void SRadialMenu::SetBorderImage(TAttribute<const FSlateBrush*> InBorderImage)
 {
 	BorderImageAttribute.Assign(*this, InBorderImage);
+}
+
+void SRadialMenu::SelectSlot(int32 SlotIndex)
+{
+	if (!Slots.IsValidIndex(SlotIndex))
+		return;
+
+	const FSlot& Slot = Slots[SlotIndex];
+
+	CurrentAngle = Slot.GetAngle();
+	TargetAngle = CurrentAngle;
+	OnAngleChanged.ExecuteIfBound(CurrentAngle);
+
+	SetSelectedSlot(SlotIndex);
+}
+
+void SRadialMenu::SetSelectedSlot(int32 SlotIndex)
+{
+	if (SelectedSlot != SlotIndex)
+	{
+		SelectedSlot = SlotIndex;
+		OnSelectionChanged.ExecuteIfBound(SelectedSlot);
+
+		FSlateApplication::Get().ForEachUser([&](FSlateUser& User) {
+			if (FSlateApplication::Get().SetUserFocus(User.GetUserIndex(), Slots[SelectedSlot].GetWidget(), EFocusCause::SetDirectly))
+			{
+			}
+			});
+	}
 }
 
 void SRadialMenu::NotifySlotChanged(const FSlot* InSlot, bool bSlotLayerChanged)

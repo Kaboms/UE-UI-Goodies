@@ -160,11 +160,17 @@ void URadialMenu::SetBrushFromMaterial(UMaterialInterface* Material)
 
 	Background.SetResourceObject(Material);
 
-	//TODO UMG Check if the material can be used with the UI
-
 	if (MyRadialMenu.IsValid())
 	{
 		MyRadialMenu->SetBorderImage(&Background);
+	}
+}
+
+void URadialMenu::SelectSlot(int32 SlotIndex)
+{
+	if (MyRadialMenu.IsValid())
+	{
+		MyRadialMenu->SelectSlot(SlotIndex);
 	}
 }
 
@@ -197,11 +203,15 @@ void URadialMenu::OnSlotRemoved(UPanelSlot* InSlot)
 
 void URadialMenu::HandleOnSelectionChanged(int32 SlotIndex)
 {
+#if WITH_EDITOR
 	// Slate emit this event from Tick. If broadcast event from tick it freeze the whole Editor UI, so we make async broadcast from GameThread
 	AsyncTask(ENamedThreads::GameThread, [=]()
 		{
 			OnSelectionChanged.Broadcast(SlotIndex);
 		});
+#else
+	OnSelectionChanged.Broadcast(SlotIndex);
+#endif
 
 	if (IsValid(BorderDynamicMaterial))
 	{

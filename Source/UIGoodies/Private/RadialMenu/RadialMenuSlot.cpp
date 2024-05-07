@@ -23,6 +23,8 @@ void URadialMenuSlot::BuildSlot(TSharedRef<SRadialMenu> RadialMenu)
         [
             Content == nullptr ? SNullWidget::NullWidget : Content->TakeWidget()
         ];
+
+    RadialMenu->OnSlotAdded(RadialMenu->GetChildren()->Num() - 1);
 }
 
 void URadialMenuSlot::ReleaseSlateResources(bool bReleaseChildren)

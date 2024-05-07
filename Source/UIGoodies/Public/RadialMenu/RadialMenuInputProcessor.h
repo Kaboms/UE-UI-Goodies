@@ -155,8 +155,8 @@ private:
 
 	FVector2D MouseDistance;
 
-	bool bMouseAsAnalogCursor;
+	bool bMouseAsAnalogCursor = false;
 
-	bool bHasAnalogInput;
-	bool bHasMouseInput;
+	bool bHasAnalogInput = false;
+	bool bHasMouseInput = false;
 };

@@ -149,6 +149,8 @@ public:
 	using FScopedWidgetSlotArguments = TPanelChildren<FSlot>::FScopedWidgetSlotArguments;
 	FScopedWidgetSlotArguments AddSlot();
 
+	void OnSlotAdded(int32 Index);
+
 	/** Removes a slot from this radial box which contains the specified SWidget
 	 *
 	 * @param SlotWidget The widget to match when searching through the slots
@@ -192,6 +194,11 @@ public:
 
 	/** Set the image to draw for this border. */
 	void SetBorderImage(TAttribute<const FSlateBrush*> InBorderImage);
+
+	void SelectSlot(int32 SlotIndex);
+
+protected:
+	void SetSelectedSlot(int32 SlotIndex);
 
 private:
 	void NotifySlotChanged(const FSlot* InSlot, bool bSlotLayerChanged = false);

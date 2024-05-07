@@ -63,6 +63,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Appearance")
 	void SetBrushFromMaterial(UMaterialInterface* Material);
 
+	UFUNCTION(BlueprintCallable)
+	void SelectSlot(int32 SlotIndex);
+
 protected:
 	// UPanelWidget
 	virtual UClass* GetSlotClass() const override;
