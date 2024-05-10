@@ -34,11 +34,13 @@ void URadialMenuSlot::ReleaseSlateResources(bool bReleaseChildren)
     Slot = nullptr;
 }
 
+#if WITH_EDITOR
 void URadialMenuSlot::SynchronizeFromTemplate(const UPanelSlot* const TemplateSlot)
 {
     const ThisClass* const TemplateRadialMenuSlot = CastChecked<ThisClass>(TemplateSlot);
     SetWeight(TemplateRadialMenuSlot->Weight);
 }
+#endif
 
 void URadialMenuSlot::SetWeight(float InWeight)
 {

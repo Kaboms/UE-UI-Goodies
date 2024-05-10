@@ -10,7 +10,6 @@
 #include "Widgets/SWidget.h"
 #include "Layout/Children.h"
 #include "Widgets/SPanel.h"
-#include "Framework/Application/IInputProcessor.h"
 #include "RadialMenu/RadialMenuInputProcessor.h"
 
 /**

@@ -5,10 +5,9 @@
 #include "Layout/LayoutUtils.h"
 #include "InputCoreTypes.h"
 #include "Materials/MaterialInterface.h"
+#include "Framework/Application/SlateUser.h"
 
-#define LOCTEXT_NAMESPACE "UIGoodies"
-
-SLATE_IMPLEMENT_WIDGET(SImage)
+SLATE_IMPLEMENT_WIDGET(SRadialMenu)
 void SRadialMenu::PrivateRegisterAttributes(FSlateAttributeInitializer& AttributeInitializer)
 {
 	SLATE_ADD_MEMBER_ATTRIBUTE_DEFINITION_WITH_NAME(AttributeInitializer, "Image", BorderImageAttribute, EInvalidateWidgetReason::Layout);

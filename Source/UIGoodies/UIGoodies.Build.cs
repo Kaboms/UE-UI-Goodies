@@ -39,8 +39,6 @@ public class UIGoodies : ModuleRules
 				"Slate",
 				"SlateCore",
                 "UMG",
-                "UMGEditor",
-                "PropertyEditor",
                 "InputCore"
 				// ... add private dependencies that you statically link with here ...	
 			}

@@ -78,12 +78,6 @@ void URadialMenu::SynchronizeProperties()
 	if (!MyRadialMenu.IsValid())
 		return;
 
-#if WITH_EDITORONLY_DATA
-	if (IsDesignTime())
-	{
-	}
-#endif
-
 	MyRadialMenu->SetStartingAngle(StartingAngle);
 	MyRadialMenu->SetBorderImage(&Background);
 	MyRadialMenu->SetPreferredRadius(PreferredRadius);
@@ -99,17 +93,6 @@ namespace DynamicRadialMenuCreateEntryInternal
 void URadialMenu::Reset(bool bDeleteWidgets)
 {
     MyRadialMenu->ClearChildren();
-}
-
-void URadialMenu::ValidateCompiledDefaults(IWidgetCompilerLog& CompileLog) const
-{
-	Super::ValidateCompiledDefaults(CompileLog);
-}
-
-#if WITH_EDITOR
-void URadialMenu::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
 int32 URadialMenu::GetSelectedSlot()
@@ -226,7 +209,5 @@ void URadialMenu::HandleOnAngleChanged(float Angle)
 		BorderDynamicMaterial->SetScalarParameterValue(RADIALMENU_MATERIAL_SELECTORANGLE, Angle);
 	}
 }
-
-#endif
 
 #undef LOCTEXT_NAMESPACE

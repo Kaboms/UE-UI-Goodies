@@ -33,16 +33,6 @@ public:
 
 	void Reset(bool bDeleteWidgets);
 
-	//~ Begin UWidget Interface
-#if WITH_EDITOR
-	virtual void ValidateCompiledDefaults(class IWidgetCompilerLog& CompileLog) const override;
-	//~ End UWidget Interface
-
-	// UObject interface
-	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
-	// End of UObject interface
-#endif
-
 	// Return -1 if no slot selected
 	UFUNCTION(BlueprintPure)
 	int32 GetSelectedSlot();
