@@ -188,7 +188,7 @@ void URadialMenu::HandleOnSelectionChanged(int32 SlotIndex)
 {
 #if WITH_EDITOR
 	// Slate emit this event from Tick. If broadcast event from tick it freeze the whole Editor UI, so we make async broadcast from GameThread
-	AsyncTask(ENamedThreads::GameThread, [=]()
+	AsyncTask(ENamedThreads::GameThread, [=, this]()
 		{
 			OnSelectionChanged.Broadcast(SlotIndex);
 		});
